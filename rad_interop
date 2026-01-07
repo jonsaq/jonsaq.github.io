@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Interop: Universal Channel Translator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Chosen Palette: Tactical Neutral. Warm grays/sand background (#f5f5f4) with high-contrast dark slate (#1c1917) text and safety orange (#ea580c) accents for visibility in outdoor settings. -->
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f4; /* Stone 100 */
+            color: #1c1917; /* Stone 900 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        .card {
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #e7e5e4;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #44403c;
+            margin-bottom: 0.25rem;
+        }
+        .input-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d6d3d1;
+            background-color: #fafaf9;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #1c1917;
+            transition: all 0.2s;
+        }
+        .input-group select:focus {
+            outline: none;
+            border-color: #ea580c;
+            ring: 2px solid #ea580c;
+        }
+        .brand-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .brand-rocky { background-color: #292524; color: white; }
+        .brand-midland { background-color: #1d4ed8; color: white; }
+        .brand-motorola { background-color: #000000; color: #fbbf24; }
+        .brand-baofeng { background-color: #dc2626; color: white; }
+        
+        /* Table Styles */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        .data-table th {
+            background-color: #e7e5e4;
+            padding: 0.5rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        .data-table td {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e7e5e4;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #fafaf9;
+        }
+        
+        /* Utility */
+        .badge-preset {
+            background-color: #fef3c7;
+            color: #92400e;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            border: 1px solid #fcd34d;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 max-w-7xl mx-auto">
+
+    <!-- Header Section -->
+    <header class="mb-8 text-center md:text-left flex flex-col md:flex-row justify-between items-center border-b border-stone-300 pb-6">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-stone-900">
+                Radio<span class="text-orange-600">Sync</span>
+            </h1>
+            <p class="mt-2 text-stone-600 max-w-xl">
+                Universal interoperability tool for consumer radios. Convert channels and privacy codes between Rocky Talkie, Midland, Motorola, and programmable Baofeng units.
+            </p>
+        </div>
+        <div class="mt-4 md:mt-0 bg-white p-3 rounded-lg shadow-sm border border-stone-200">
+            <div class="text-xs font-bold text-stone-400 uppercase tracking-wider mb-1">Current Protocol</div>
+            <div class="flex items-center space-x-2">
+                <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="font-mono text-sm font-bold text-stone-800">FRS/GMRS MATCHING</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Application Structure Plan: 
+         The app is designed with a "Source -> Target" flow. 
+         1. Control Panel: Top section allows user to define the 'Source' radio (e.g., "I have a Rocky Talkie").
+         2. Translation Engine: JS logic instantly calculates the Raw Freq/Hz and maps it to other brands.
+         3. Dashboard Grid: Displays the configuration for every other brand simultaneously. No need to switch tabs; seeing all allows for group coordination.
+         4. Spectrum Viz: Contextualizes the frequency selection.
+         5. Reference Data: Tables for manual lookup at the bottom.
+         This structure prioritizes speed in the field.
+    -->
+
+    <!-- Main Logic Section -->
+    <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Input & Primary Data -->
+        <section class="lg:col-span-4 space-y-6">
+            
+            <!-- Context Intro -->
+            <div class="bg-orange-50 border-l-4 border-orange-500 p-4 rounded-r-md">
+                <h3 class="font-bold text-orange-900">Source Configuration</h3>
+                <p class="text-sm text-orange-800 mt-1">
+                    Select the radio settings you currently have. The tool will calculate the matching settings for all other devices.
+                </p>
+            </div>
+
+            <!-- Input Card -->
+            <div class="card p-6">
+                <div class="space-y-5">
+                    <div class="input-group">
+                        <label for="brandSelect">Radio Brand</label>
+                        <select id="brandSelect">
+                            <option value="rocky">Rocky Talkie (Mountain Radio)</option>
+                            <option value="midland">Midland (LXT/GXT Series)</option>
+                            <option value="motorola">Motorola (Talkabout Series)</option>
+                            <option value="baofeng">Baofeng (UV-5R / Programmable)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="input-group">
+                            <label for="channelSelect">Channel</label>
+                            <select id="channelSelect">
+                                <!-- Populated by JS based on brand limits -->
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="codeSelect">Privacy Code</label>
+                            <select id="codeSelect">
+                                <!-- Populated by JS -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- High Channel Warning -->
+                    <div id="presetWarning" class="hidden text-xs bg-yellow-50 text-yellow-800 p-2 rounded border border-yellow-200">
+                        <strong>Note:</strong> You selected a high preset channel. Ensure the privacy code matches your specific device's manual.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Computed Raw Data Output -->
+            <div class="card p-6 bg-stone-900 text-white border-stone-800">
+                <h2 class="text-xs font-bold text-stone-400 uppercase tracking-widest mb-4">Transmission Signal Data</h2>
+                
+                <div class="grid grid-cols-1 gap-6">
+                    <div>
+                        <div class="text-stone-400 text-xs mb-1">Broadcast Frequency</div>
+                        <div class="text-4xl font-mono font-bold text-green-400" id="rawFreqDisplay">462.5625 <span class="text-lg">MHz</span></div>
+                        <div class="text-stone-500 text-xs mt-1" id="baseChannelDisplay">Base: Channel 1</div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 border-t border-stone-700 pt-4">
+                        <div>
+                            <div class="text-stone-400 text-xs mb-1">Tone Type</div>
+                            <div class="font-bold text-lg" id="rawTypeDisplay">None</div>
+                        </div>
+                        <div>
+                            <div class="text-stone-400 text-xs mb-1">Tone Value</div>
+                            <div class="font-bold text-lg text-orange-400" id="rawToneDisplay">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: Results Dashboard -->
+        <section class="lg:col-span-8 space-y-6">
+            
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-stone-800">Compatible Settings</h2>
+                <span class="text-sm text-stone-500">Sync these radios to match source</span>
+            </div>
+
+            <!-- Brand Cards Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Rocky Talkie Output -->
+                <div class="card p-5 border-l-8 border-stone-800" id="card-rocky">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="brand-badge brand-rocky">Rocky Talkie</span>
+                        <span class="text-xs text-stone-400 font-mono">Consumer FRS</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-end border-b border-stone-100 pb-2">
+                            <span class="text-sm font-medium text-stone-500">Set Channel</span>
+                            <span class="text-3xl font-bold text-stone-800" id="out-rocky-ch">1</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-sm font-medium text-stone-500">Privacy Code</span>
+                            <span class="text-2xl font-bold text-stone-800" id="out-rocky-code">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Midland Output -->
+                <div class="card p-5 border-l-8 border-blue-700" id="card-midland">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="brand-badge brand-midland">Midland</span>
+                        <span class="text-xs text-stone-400 font-mono">LXT/GXT Series</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-end border-b border-stone-100 pb-2">
+                            <span class="text-sm font-medium text-stone-500">Set Channel</span>
+                            <span class="text-3xl font-bold text-stone-800" id="out-midland-ch">1</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-sm font-medium text-stone-500">Privacy Code</span>
+                            <span class="text-2xl font-bold text-stone-800" id="out-midland-code">0</span>
+                        </div>
+                        <p class="text-xs text-stone-400 italic mt-2" id="midland-note">Standard 1-36 Channel Map</p>
+                    </div>
+                </div>
+
+                <!-- Motorola Output -->
+                <div class="card p-5 border-l-8 border-yellow-500" id="card-motorola">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="brand-badge brand-motorola">Motorola</span>
+                        <span class="text-xs text-stone-400 font-mono">Talkabout Series</span>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-end border-b border-stone-100 pb-2">
+                            <span class="text-sm font-medium text-stone-500">Set Channel</span>
+                            <span class="text-3xl font-bold text-stone-800" id="out-motorola-ch">1</span>
+                        </div>
+                        <div class="flex justify-between items-end">
+                            <span class="text-sm font-medium text-stone-500">Privacy Code</span>
+                            <span class="text-2xl font-bold text-stone-800" id="out-motorola-code">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Baofeng Output -->
+                <div class="card p-5 border-l-8 border-red-600" id="card-baofeng">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="brand-badge brand-baofeng">Baofeng</span>
+                        <span class="text-xs text-stone-400 font-mono">Programmable</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex flex-col border-b border-stone-100 pb-2">
+                            <span class="text-xs font-medium text-stone-500">Enter Frequency (VFO)</span>
+                            <span class="text-2xl font-mono font-bold text-stone-800" id="out-baofeng-freq">462.5625</span>
+                        </div>
+                        <div class="flex flex-col pt-1">
+                            <span class="text-xs font-medium text-stone-500">Menu 11 (R-CTCSS) / 10 (R-DCS)</span>
+                            <span class="text-lg font-mono font-bold text-red-600" id="out-baofeng-tone">OFF</span>
+                            <span class="text-[10px] text-stone-400">Set same for Menu 13/12 (TX)</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Visualization Section -->
+            <!-- Visualization & Content Choices: 
+                 Goal: Visualize the selected channel within the spectrum.
+                 Method: Chart.js Bar Chart. 
+                 Why: Shows the user "where" they are in the band (Simplex vs Repeater channels) which is educational for radio ops.
+                 Constraint Check: NO SVG used. Canvas only.
+            -->
+            <div class="card p-6 mt-6">
+                <div class="mb-4">
+                    <h3 class="font-bold text-stone-800">Frequency Spectrum</h3>
+                    <p class="text-xs text-stone-500">Visualizing channel position within the UHF GMRS/FRS band.</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="spectrumChart"></canvas>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Reference Section (Collapsible) -->
+    <section class="mt-12 border-t border-stone-200 pt-8">
+        <h2 class="text-2xl font-bold text-stone-800 mb-6">Reference Tables</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Freq Table -->
+            <div class="card overflow-hidden">
+                <div class="bg-stone-100 p-3 border-b border-stone-200 font-bold text-stone-700">Standard FRS/GMRS Frequencies</div>
+                <div class="overflow-y-auto max-h-64 p-0">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ch</th>
+                                <th>Freq (MHz)</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody id="freqTableBody">
+                            <!-- JS Generated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tone Table -->
+            <div class="card overflow-hidden">
+                <div class="bg-stone-100 p-3 border-b border-stone-200 font-bold text-stone-700">Standard Privacy Tones (CTCSS)</div>
+                <div class="overflow-y-auto max-h-64 p-0">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Freq (Hz)</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="toneTableBody">
+                            <!-- JS Generated -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <script>
+        // --- DATA DATA ---
+
+        // Standard 22 FRS/GMRS Channels
+        const channels = [
+            { ch: 1, freq: 462.5625, type: "FRS/GMRS (Inter)" },
+            { ch: 2, freq: 462.5875, type: "FRS/GMRS (Inter)" },
+            { ch: 3, freq: 462.6125, type: "FRS/GMRS (Inter)" },
+            { ch: 4, freq: 462.6375, type: "FRS/GMRS (Inter)" },
+            { ch: 5, freq: 462.6625, type: "FRS/GMRS (Inter)" },
+            { ch: 6, freq: 462.6875, type: "FRS/GMRS (Inter)" },
+            { ch: 7, freq: 462.7125, type: "FRS/GMRS (Inter)" },
+            { ch: 8, freq: 467.5625, type: "FRS (Low Power)" },
+            { ch: 9, freq: 467.5875, type: "FRS (Low Power)" },
+            { ch: 10, freq: 467.6125, type: "FRS (Low Power)" },
+            { ch: 11, freq: 467.6375, type: "FRS (Low Power)" },
+            { ch: 12, freq: 467.6625, type: "FRS (Low Power)" },
+            { ch: 13, freq: 467.6875, type: "FRS (Low Power)" },
+            { ch: 14, freq: 467.7125, type: "FRS (Low Power)" },
+            { ch: 15, freq: 462.5500, type: "GMRS/FRS (Main)" },
+            { ch: 16, freq: 462.5750, type: "GMRS/FRS (Main)" },
+            { ch: 17, freq: 462.6000, type: "GMRS/FRS (Main)" },
+            { ch: 18, freq: 462.6250, type: "GMRS/FRS (Main)" },
+            { ch: 19, freq: 462.6500, type: "GMRS/FRS (Main)" },
+            { ch: 20, freq: 462.6750, type: "GMRS/FRS (Main)" },
+            { ch: 21, freq: 462.7000, type: "GMRS/FRS (Main)" },
+            { ch: 22, freq: 462.7250, type: "GMRS/FRS (Main)" }
+        ];
+
+        // Brand Configuration
+        const brandConfig = {
+            rocky: { 
+                maxChannels: 128, 
+                label: "Rocky Talkie",
+                note: "Ch 23-128 are repeat presets of 1-22."
+            },
+            midland: { 
+                maxChannels: 36, 
+                label: "Midland",
+                note: "Ch 23-36 are presets of base channels."
+            },
+            motorola: { 
+                maxChannels: 22, 
+                label: "Motorola",
+                note: "Standard 22 Channel Map"
+            },
+            baofeng: { 
+                maxChannels: 22, 
+                label: "Baofeng",
+                note: "Uses VFO Frequency"
+            }
+        };
+
+        // Standard CTCSS Tones (1-38 is the industry standard set)
+        const ctcss = [
+            { code: 1, hz: 67.0 }, { code: 2, hz: 71.9 }, { code: 3, hz: 74.4 }, { code: 4, hz: 77.0 },
+            { code: 5, hz: 79.7 }, { code: 6, hz: 82.5 }, { code: 7, hz: 85.4 }, { code: 8, hz: 88.5 },
+            { code: 9, hz: 91.5 }, { code: 10, hz: 94.8 }, { code: 11, hz: 97.4 }, { code: 12, hz: 100.0 },
+            { code: 13, hz: 103.5 }, { code: 14, hz: 107.2 }, { code: 15, hz: 110.9 }, { code: 16, hz: 114.8 },
+            { code: 17, hz: 118.8 }, { code: 18, hz: 123.0 }, { code: 19, hz: 127.3 }, { code: 20, hz: 131.8 },
+            { code: 21, hz: 136.5 }, { code: 22, hz: 141.3 }, { code: 23, hz: 146.2 }, { code: 24, hz: 151.4 },
+            { code: 25, hz: 156.7 }, { code: 26, hz: 162.2 }, { code: 27, hz: 167.9 }, { code: 28, hz: 173.8 },
+            { code: 29, hz: 179.9 }, { code: 30, hz: 186.2 }, { code: 31, hz: 192.8 }, { code: 32, hz: 203.5 },
+            { code: 33, hz: 210.7 }, { code: 34, hz: 218.1 }, { code: 35, hz: 225.7 }, { code: 36, hz: 233.6 },
+            { code: 37, hz: 241.8 }, { code: 38, hz: 250.3 }
+        ];
+
+        // Standard DCS Codes (Subset of common codes)
+        // Mapped to "Privacy Code" numbers starting at 39 (Common for Moto/Rocky)
+        const dcs = [
+            { pCode: 39, octal: '023' }, { pCode: 40, octal: '025' }, { pCode: 41, octal: '026' }, 
+            { pCode: 42, octal: '031' }, { pCode: 43, octal: '032' }, { pCode: 44, octal: '043' },
+            { pCode: 45, octal: '047' }, { pCode: 46, octal: '051' }, { pCode: 47, octal: '054' },
+            { pCode: 48, octal: '065' }, { pCode: 49, octal: '071' }, { pCode: 50, octal: '072' },
+            { pCode: 51, octal: '073' }, { pCode: 52, octal: '074' }, { pCode: 53, octal: '114' },
+            { pCode: 54, octal: '115' }, { pCode: 55, octal: '116' }, { pCode: 56, octal: '125' },
+            { pCode: 57, octal: '131' }, { pCode: 58, octal: '132' }, { pCode: 59, octal: '134' },
+            { pCode: 60, octal: '143' }, { pCode: 61, octal: '152' }, { pCode: 62, octal: '155' },
+            { pCode: 63, octal: '156' }, { pCode: 64, octal: '162' }, { pCode: 65, octal: '165' },
+            { pCode: 66, octal: '172' }, { pCode: 67, octal: '174' }, { pCode: 68, octal: '205' },
+            { pCode: 69, octal: '212' }, { pCode: 70, octal: '223' }, { pCode: 71, octal: '226' },
+            { pCode: 72, octal: '243' }, { pCode: 73, octal: '244' }, { pCode: 74, octal: '245' },
+            { pCode: 75, octal: '251' }, { pCode: 76, octal: '261' }, { pCode: 77, octal: '263' },
+            { pCode: 78, octal: '265' }, { pCode: 79, octal: '271' }
+        ];
+
+        // --- APP STATE ---
+        const state = {
+            brand: 'rocky',
+            channel: 1, // Selected Channel Index
+            baseChannel: 1, // 1-22 equivalent
+            code: 0, // 0 = None, 1-38 = CTCSS, 39+ = DCS
+            
+            // Computed Truths
+            trueFreq: 462.5625,
+            trueToneType: 'None', // None, CTCSS, DCS
+            trueToneValue: 0
+        };
+
+        // --- DOM ELEMENTS ---
+        const els = {
+            brand: document.getElementById('brandSelect'),
+            channel: document.getElementById('channelSelect'),
+            code: document.getElementById('codeSelect'),
+            presetWarning: document.getElementById('presetWarning'),
+            
+            rawFreq: document.getElementById('rawFreqDisplay'),
+            baseChannel: document.getElementById('baseChannelDisplay'),
+            rawType: document.getElementById('rawTypeDisplay'),
+            rawTone: document.getElementById('rawToneDisplay'),
+
+            outRockyCh: document.getElementById('out-rocky-ch'),
+            outRockyCode: document.getElementById('out-rocky-code'),
+            outMidlandCh: document.getElementById('out-midland-ch'),
+            outMidlandCode: document.getElementById('out-midland-code'),
+            outMotorolaCh: document.getElementById('out-motorola-ch'),
+            outMotorolaCode: document.getElementById('out-motorola-code'),
+            outBaofengFreq: document.getElementById('out-baofeng-freq'),
+            outBaofengTone: document.getElementById('out-baofeng-tone'),
+
+            freqTable: document.getElementById('freqTableBody'),
+            toneTable: document.getElementById('toneTableBody'),
+            
+            spectrumCtx: document.getElementById('spectrumChart').getContext('2d')
+        };
+
+        // --- INITIALIZATION ---
+        function init() {
+            populateReferenceTables();
+            updateDropdowns(); // Populate channels/codes based on default brand
+            attachListeners();
+            calculate();
+            renderChart();
+        }
+
+        // --- POPULATION HELPERS ---
+        function populateReferenceTables() {
+            // Frequencies
+            els.freqTable.innerHTML = channels.map(c => `
+                <tr>
+                    <td class="font-bold">${c.ch}</td>
+                    <td>${c.freq.toFixed(4)}</td>
+                    <td class="text-xs text-stone-500">${c.type}</td>
+                </tr>
+            `).join('');
+
+            // Tones
+            els.toneTable.innerHTML = ctcss.map(c => `
+                <tr>
+                    <td class="font-bold">${c.code}</td>
+                    <td>${c.hz.toFixed(1)}</td>
+                    <td class="text-xs text-stone-500">Standard CTCSS</td>
+                </tr>
+            `).join('') + dcs.map(d => `
+                <tr>
+                    <td class="font-bold">${d.pCode}</td>
+                    <td>${d.octal}</td>
+                    <td class="text-xs text-stone-500">DCS (Octal)</td>
+                </tr>
+            `).slice(0, 5).join('') + `<tr><td colspan="3" class="text-center italic text-xs">...more DCS codes...</td></tr>`;
+        }
+
+        function updateDropdowns() {
+            const currentBrand = els.brand.value;
+            const config = brandConfig[currentBrand];
+            const max = config ? config.maxChannels : 22;
+            
+            const currentCh = parseInt(els.channel.value) || 1;
+            
+            let options = '';
+            for(let i=1; i<=max; i++) {
+                let label = `Channel ${i}`;
+                if (i > 22) label += ` (Preset)`;
+                options += `<option value="${i}">${label}</option>`;
+            }
+            els.channel.innerHTML = options;
+            
+            // Try to preserve selection if within range, else 1
+            if(currentCh <= max) {
+                els.channel.value = currentCh;
+            } else {
+                els.channel.value = 1;
+            }
+
+            const currentCode = els.code.value;
+            let codeOptions = `<option value="0">0 (No Privacy Code)</option>`;
+            
+            // Add CTCSS
+            ctcss.forEach(c => {
+                codeOptions += `<option value="${c.code}">Code ${c.code} (${c.hz} Hz)</option>`;
+            });
+
+            // Add DCS (Simplified list)
+            dcs.forEach(d => {
+                codeOptions += `<option value="${d.pCode}">Code ${d.pCode} (DCS ${d.octal})</option>`;
+            });
+
+            els.code.innerHTML = codeOptions;
+            if(currentCode) els.code.value = currentCode;
+        }
+
+        function attachListeners() {
+            els.brand.addEventListener('change', (e) => {
+                state.brand = e.target.value;
+                updateDropdowns(); 
+                calculate();
+            });
+            els.channel.addEventListener('change', (e) => {
+                state.channel = parseInt(e.target.value);
+                calculate();
+            });
+            els.code.addEventListener('change', (e) => {
+                state.code = parseInt(e.target.value);
+                calculate();
+            });
+        }
+
+        // --- CORE LOGIC ---
+        function calculate() {
+            state.brand = els.brand.value;
+            state.channel = parseInt(els.channel.value);
+            state.code = parseInt(els.code.value);
+
+            // 1. Determine "Base Channel" (1-22)
+            // If channel > 22, we map it back to 1-22 range using modulo
+            // Standard consumer radio behavior (repeating banks)
+            if (state.channel > 22) {
+                state.baseChannel = ((state.channel - 1) % 22) + 1;
+                els.presetWarning.classList.remove('hidden');
+                els.presetWarning.innerHTML = `<strong>Note:</strong> Channel ${state.channel} is a high-preset. It uses the frequency of <strong>Channel ${state.baseChannel}</strong> with a preset privacy code. Verify the code in your radio manual.`;
+            } else {
+                state.baseChannel = state.channel;
+                els.presetWarning.classList.add('hidden');
+            }
+            
+            // Update Base Display
+            els.baseChannel.textContent = `Base: Channel ${state.baseChannel}`;
+
+            // 2. Determine Truth Freq
+            const selectedChObj = channels.find(c => c.ch === state.baseChannel);
+            state.trueFreq = selectedChObj ? selectedChObj.freq : 0;
+
+            // 3. Determine Truth Tone
+            if (state.code === 0) {
+                state.trueToneType = 'None';
+                state.trueToneValue = 0;
+            } else if (state.code <= 38) {
+                state.trueToneType = 'CTCSS';
+                const toneObj = ctcss.find(c => c.code === state.code);
+                state.trueToneValue = toneObj ? toneObj.hz : 0;
+            } else {
+                state.trueToneType = 'DCS';
+                const dcsObj = dcs.find(d => d.pCode === state.code);
+                state.trueToneValue = dcsObj ? dcsObj.octal : '???';
+            }
+
+            // 4. Update Raw Display
+            els.rawFreq.innerHTML = `${state.trueFreq.toFixed(4)} <span class="text-lg">MHz</span>`;
+            els.rawType.textContent = state.trueToneType;
+            els.rawTone.textContent = state.trueToneValue !== 0 ? state.trueToneValue : '--';
+            if(state.trueToneType === 'CTCSS') els.rawTone.textContent += ' Hz';
+            
+            // 5. Map to Brands
+            
+            // Rocky Talkie
+            // If mapping FROM another brand, we just show the base channel (1-22) for simplicity
+            // unless we had a reverse lookup table for their 128 presets.
+            els.outRockyCh.textContent = state.baseChannel;
+            els.outRockyCode.textContent = state.code;
+
+            // Midland
+            els.outMidlandCh.textContent = state.baseChannel;
+            els.outMidlandCode.textContent = state.code;
+            
+            // Motorola
+            els.outMotorolaCh.textContent = state.baseChannel;
+            els.outMotorolaCode.textContent = state.code;
+
+            // Baofeng (Raw Data)
+            els.outBaofengFreq.textContent = state.trueFreq.toFixed(4);
+            if (state.trueToneType === 'None') {
+                els.outBaofengTone.textContent = "OFF";
+            } else if (state.trueToneType === 'CTCSS') {
+                els.outBaofengTone.textContent = `${state.trueToneValue} Hz`;
+            } else {
+                els.outBaofengTone.textContent = `D${state.trueToneValue}N`;
+            }
+
+            // Update Chart Highlights
+            updateChart();
+        }
+
+        // --- CHARTING ---
+        let spectrumChart;
+
+        function renderChart() {
+            const labels = channels.map(c => c.ch);
+            const data = channels.map(c => c.freq);
+            
+            // Color logic: FRS/GMRS Inter (1-7) = Green, FRS Low (8-14) = Orange, Main (15-22) = Blue
+            const bgColors = channels.map(c => {
+                if(c.ch <= 7) return '#22c55e'; // Green
+                if(c.ch <= 14) return '#f97316'; // Orange
+                return '#3b82f6'; // Blue
+            });
+
+            spectrumChart = new Chart(els.spectrumCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Frequency (MHz)',
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderRadius: 4,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.raw} MHz`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            min: 462.5,
+                            max: 467.8,
+                            grid: { color: '#e7e5e4' }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if(!spectrumChart) return;
+            
+            // Highlight selected channel
+            const newColors = channels.map(c => {
+                if (c.ch === state.baseChannel) return '#1c1917'; // Dark selected
+                if(c.ch <= 7) return '#22c55e';
+                if(c.ch <= 14) return '#f97316';
+                return '#3b82f6';
+            });
+
+            spectrumChart.data.datasets[0].backgroundColor = newColors;
+            spectrumChart.update();
+        }
+
+        // Run
+        init();
+
+    </script>
+</body>
+</html>
