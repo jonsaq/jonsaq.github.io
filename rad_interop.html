@@ -289,6 +289,24 @@
                 </div>
 
             </div>
+
+            <!-- Visualization Section -->
+            <!-- Visualization & Content Choices: 
+                 Goal: Visualize the selected channel within the spectrum.
+                 Method: Chart.js Bar Chart. 
+                 Why: Shows the user "where" they are in the band (Simplex vs Repeater channels) which is educational for radio ops.
+                 Constraint Check: NO SVG used. Canvas only.
+            -->
+            <div class="card p-6 mt-6">
+                <div class="mb-4">
+                    <h3 class="font-bold text-stone-800">Frequency Spectrum</h3>
+                    <p class="text-xs text-stone-500">Visualizing channel position within the UHF GMRS/FRS band.</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="spectrumChart"></canvas>
+                </div>
+            </div>
+
         </section>
     </main>
 
